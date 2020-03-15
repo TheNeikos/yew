@@ -1,3 +1,4 @@
+#![allow(unused)]
 //! This crate provides Yew's procedural macro `html!` which allows using JSX-like syntax
 //! for generating html and the `Properties` derive macro for deriving the `Properties` trait
 //! for components.
@@ -87,7 +88,7 @@ fn non_capitalized_ascii(string: &str) -> bool {
     }
 }
 
-#[proc_macro_derive(Properties, attributes(prop_or, prop_or_else, prop_or_default))]
+#[proc_macro_derive(Properties, attributes(prop_or, prop_or_else, prop_or_default, prop_for))]
 pub fn derive_props(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DerivePropsInput);
     TokenStream::from(input.into_token_stream())

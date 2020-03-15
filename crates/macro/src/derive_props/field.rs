@@ -9,7 +9,7 @@ use syn::{Error, Expr, Field, Type, Visibility};
 
 #[allow(clippy::large_enum_variant)]
 #[derive(PartialEq, Eq)]
-enum PropAttr {
+pub enum PropAttr {
     Required { wrapped_name: Ident },
     PropOr(Expr),
     PropOrElse(Expr),
@@ -19,8 +19,8 @@ enum PropAttr {
 #[derive(Eq)]
 pub struct PropField {
     ty: Type,
-    name: Ident,
-    attr: PropAttr,
+    pub name: Ident,
+    pub attr: PropAttr,
 }
 
 impl PropField {

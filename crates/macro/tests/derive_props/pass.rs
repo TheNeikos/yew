@@ -6,14 +6,15 @@ mod t1 {
     use super::*;
 
     #[derive(Clone, Properties)]
+    #[prop_for(NonExistent)]
     pub struct Props<T: Clone + Default> {
         #[prop_or_default]
         value: T,
     }
 
     fn optional_prop_generics_should_work() {
-        Props::<bool>::builder().build();
-        Props::<bool>::builder().value(true).build();
+        NonExistentPropCreator!{};
+        NonExistentPropCreator!{ value: 123i32 };
     }
 }
 

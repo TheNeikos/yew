@@ -4,7 +4,7 @@ use super::HtmlTreeNested;
 use crate::PeekValue;
 use boolinator::Boolinator;
 use proc_macro2::Span;
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{quote, quote_spanned, ToTokens, format_ident};
 use std::cmp::Ordering;
 use syn::buffer::Cursor;
 use syn::parse;
@@ -12,12 +12,12 @@ use syn::parse::{Parse, ParseStream, Result as ParseResult};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    AngleBracketedGenericArguments, Expr, GenericArgument, Ident, Path, PathArguments, PathSegment,
-    Token, Type, TypePath,
+    AngleBracketedGenericArguments, Expr, GenericArgument, Ident, PathArguments, PathSegment,
+    Token, Path, TypePath,
 };
 
 pub struct HtmlComponent {
-    ty: Type,
+    ty: TypePath,
     props: Props,
     children: Vec<HtmlTreeNested>,
 }
@@ -87,6 +87,9 @@ impl ToTokens for HtmlComponent {
             children,
         } = self;
 
+        let ty_macro = format_ident!("{}PropCreator", &ty.path.segments.last().unwrap().ident);
+        println!("{}", ty_macro);
+
         let validate_props = if let Props::List(list_props) = props {
             let check_props = list_props.props.iter().map(|HtmlProp { label, .. }| {
                 quote! { props.#label; }
@@ -110,11 +113,13 @@ impl ToTokens for HtmlComponent {
 
         let set_children = if !children.is_empty() {
             quote! {
-                .children(::yew::html::ChildrenRenderer::new({
-                    let mut v = ::std::vec::Vec::new();
-                    #(v.extend(::yew::utils::NodeSeq::from(#children));)*
-                    v
-                }))
+                children: {
+                    ::yew::html::ChildrenRenderer::new({
+                        let mut v = ::std::vec::Vec::new();
+                        #(v.extend(::yew::utils::NodeSeq::from(#children));)*
+                        v
+                    })
+                }
             }
         } else {
             quote! {}
@@ -123,18 +128,18 @@ impl ToTokens for HtmlComponent {
         let init_props = match props {
             Props::List(list_props) => {
                 let set_props = list_props.props.iter().map(|HtmlProp { label, value }| {
-                    quote_spanned! { value.span()=> .#label(
+                    quote_spanned! { value.span()=> #label: {
                         <::yew::virtual_dom::VComp as ::yew::virtual_dom::Transformer<_, _>>::transform(
                             #value
                         )
-                    )}
+                    }}
                 });
 
                 quote! {
-                    <<#ty as ::yew::html::Component>::Properties as ::yew::html::Properties>::builder()
-                        #(#set_props)*
+                    #ty_macro! {
+                        #(#set_props),*
                         #set_children
-                        .build()
+                    }
                 }
             }
             Props::With(with_props) => {
@@ -142,9 +147,9 @@ impl ToTokens for HtmlComponent {
                 quote! { #props }
             }
             Props::None => quote! {
-                <<#ty as ::yew::html::Component>::Properties as ::yew::html::Properties>::builder()
+                #ty_macro! {
                     #set_children
-                    .build()
+                }
             },
         };
 
@@ -159,7 +164,7 @@ impl ToTokens for HtmlComponent {
             quote! { ::yew::html::NodeRef::default() }
         };
 
-        tokens.extend(quote! {{
+        let expanded = quote! {{
             // These validation checks show a nice error message to the user.
             // They do not execute at runtime
             if false {
@@ -168,7 +173,10 @@ impl ToTokens for HtmlComponent {
             }
 
             ::yew::virtual_dom::VChild::<#ty>::new(#init_props, #node_ref)
-        }});
+        }};
+        println!("{}", expanded);
+
+        tokens.extend(expanded);
     }
 }
 
@@ -196,14 +204,14 @@ impl HtmlComponent {
             PathArguments::AngleBracketed(AngleBracketedGenericArguments {
                 colon2_token: None,
                 lt_token: Token![<](Span::call_site()),
-                args: vec![GenericArgument::Type(ty)].into_iter().collect(),
+                args: vec![GenericArgument::Type(ty.into())].into_iter().collect(),
                 gt_token: Token![>](Span::call_site()),
             }),
             cursor,
         ))
     }
 
-    fn peek_type(mut cursor: Cursor) -> Option<(Type, Cursor)> {
+    fn peek_type(mut cursor: Cursor) -> Option<(TypePath, Cursor)> {
         let mut colons_optional = true;
         let mut last_ident = None;
         let mut leading_colon = None;
@@ -244,13 +252,13 @@ impl HtmlComponent {
         type_str.bytes().next()?.is_ascii_uppercase().as_option()?;
 
         Some((
-            Type::Path(TypePath {
+            TypePath {
                 qself: None,
                 path: Path {
                     leading_colon,
                     segments,
                 },
-            }),
+            },
             cursor,
         ))
     }
@@ -258,14 +266,14 @@ impl HtmlComponent {
 
 struct HtmlComponentOpen {
     lt: Token![<],
-    ty: Type,
+    ty: TypePath,
     props: Props,
     div: Option<Token![/]>,
     gt: Token![>],
 }
 
-impl PeekValue<Type> for HtmlComponentOpen {
-    fn peek(cursor: Cursor) -> Option<Type> {
+impl PeekValue<TypePath> for HtmlComponentOpen {
+    fn peek(cursor: Cursor) -> Option<TypePath> {
         let (punct, cursor) = cursor.punct()?;
         (punct.as_char() == '<').as_option()?;
         let (typ, _) = HtmlComponent::peek_type(cursor)?;
@@ -302,12 +310,12 @@ impl ToTokens for HtmlComponentOpen {
 struct HtmlComponentClose {
     lt: Token![<],
     div: Token![/],
-    ty: Type,
+    ty: TypePath,
     gt: Token![>],
 }
 
-impl PeekValue<Type> for HtmlComponentClose {
-    fn peek(cursor: Cursor) -> Option<Type> {
+impl PeekValue<TypePath> for HtmlComponentClose {
+    fn peek(cursor: Cursor) -> Option<TypePath> {
         let (punct, cursor) = cursor.punct()?;
         (punct.as_char() == '<').as_option()?;
 

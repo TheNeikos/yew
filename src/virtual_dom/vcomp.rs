@@ -324,6 +324,7 @@ mod tests {
     struct Comp;
 
     #[derive(Clone, PartialEq, Properties)]
+    #[prop_for(Comp)]
     struct Props {
         #[prop_or_default]
         field_1: u32,

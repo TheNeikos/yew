@@ -7,6 +7,7 @@ mod t1 {
     #[derive(Clone)]
     struct Value;
     #[derive(Clone, Properties)]
+    #[prop_for(NonExistant)]
     pub struct Props {
         // ERROR: optional params must implement default
         #[prop_or_default]
@@ -17,6 +18,7 @@ mod t1 {
 mod t2 {
     use super::*;
     #[derive(Clone, Properties)]
+    #[prop_for(NonExistant)]
     pub struct Props {
         // ERROR: old syntax no longer supported
         #[props(default)]
@@ -27,31 +29,20 @@ mod t2 {
 mod t3 {
     use super::*;
     #[derive(Clone, Properties)]
+    #[prop_for(NonExistant)]
     pub struct Props {
         value: String,
     }
 
     fn required_props_should_be_set() {
-        Props::builder().build();
-    }
-}
-
-mod t4 {
-    use super::*;
-    #[derive(Clone, Properties)]
-    pub struct Props {
-        b: i32,
-        a: i32,
-    }
-
-    fn enforce_ordering() {
-        Props::builder().b(1).a(2).build();
+        NonExistantPropCreator! {}
     }
 }
 
 mod t5 {
     use super::*;
     #[derive(Clone, Properties)]
+    #[prop_for(NonExistant)]
     pub struct Props {
         // ERROR: prop_or must be given a value
         #[prop_or()]
@@ -62,6 +53,7 @@ mod t5 {
 mod t6 {
     use super::*;
     #[derive(Clone, Properties)]
+    #[prop_for(NonExistant)]
     pub struct Props {
         // ERROR: 123 is not a String
         #[prop_or(123)]
@@ -72,6 +64,7 @@ mod t6 {
 mod t7 {
     use super::*;
     #[derive(Clone, Properties)]
+    #[prop_for(NonExistant)]
     pub struct Props {
         // ERROR: 123 is not a function
         #[prop_or_else(123)]
@@ -82,6 +75,7 @@ mod t7 {
 mod t8 {
     use super::*;
     #[derive(Clone, Properties)]
+    #[prop_for(NonExistant)]
     pub struct Props {
         // ERROR: cannot find function foo in this scope
         #[prop_or_else(foo)]
@@ -92,6 +86,7 @@ mod t8 {
 mod t9 {
     use super::*;
     #[derive(Clone, Properties)]
+    #[prop_for(NonExistant)]
     pub struct Props {
         // ERROR: the function must take no arguments
         #[prop_or_else(foo)]
@@ -106,6 +101,7 @@ mod t9 {
 mod t10 {
     use super::*;
     #[derive(Clone, Properties)]
+    #[prop_for(NonExistant)]
     pub struct Props {
         // ERROR: the function returns incompatible types
         #[prop_or_else(foo)]

@@ -1,22 +1,21 @@
-// mod builder;
+mod builder;
 mod field;
 mod generics;
 mod wrapper;
 
-
-use field::{PropField, PropAttr};
+use builder::PropsBuilder;
+use field::PropField;
 use proc_macro2::{Ident, Span};
 use quote::{quote, ToTokens, format_ident};
 use std::convert::TryInto;
 use syn::parse::{Parse, ParseStream, Result};
-use syn::{DeriveInput, Generics, Visibility, parse::ParseBuffer};
+use syn::{DeriveInput, Generics, Visibility};
 use wrapper::PropsWrapper;
 
 pub struct DerivePropsInput {
     vis: Visibility,
     generics: Generics,
     props_name: Ident,
-    model_name: Ident,
     prop_fields: Vec<PropField>,
 }
 
@@ -31,13 +30,11 @@ impl Parse for DerivePropsInput {
             _ => unimplemented!("only structs are supported"),
         };
 
-        let model_name: Ident = input.attrs.iter().find(|attr| {
-            attr.path.is_ident("prop_for")
-        }).map(|attr| {
-            attr.parse_args_with(|parser: &ParseBuffer| {
-                parser.parse()
-            }).unwrap()
-        }).expect("You need to have an attribute 'prop_for'");
+        let model_name = named_field.attrs.iter().find(|attr| {
+            attr.path.is_ident("prop_or")
+                || attr.path.is_ident("prop_or_else")
+                || attr.path.is_ident("prop_or_default")
+        });
 
         let mut prop_fields: Vec<PropField> = named_fields
             .into_iter()
@@ -51,7 +48,6 @@ impl Parse for DerivePropsInput {
             vis: input.vis,
             props_name: input.ident,
             generics: input.generics,
-            model_name,
             prop_fields,
         })
     }
@@ -63,7 +59,6 @@ impl ToTokens for DerivePropsInput {
             generics,
             props_name,
             prop_fields,
-            model_name,
             ..
         } = self;
 
@@ -82,7 +77,8 @@ impl ToTokens for DerivePropsInput {
         // The properties trait has a `builder` method which creates the props builder
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-        let ty_macro = format_ident!("{}PropCreator", &model_name);
+        let ty_macro = format_ident!("{}PropCreator", &props_name);
+        println!("{}", ty_macro);
 
         let prop_field_gen = prop_fields.iter().map(|field| {
             let ident = &field.name;
@@ -92,47 +88,18 @@ impl ToTokens for DerivePropsInput {
 
         let prop_field_names = prop_fields.iter().map(|field| &field.name);
 
-        let prop_field_macro = prop_fields.iter().map(|field| {
-            let ident = &field.name;
-            let match_ident = format_ident!("match_{}", ident);
-            let field_value = match &field.attr {
-                PropAttr::Required { .. } => { quote!( compile_error!("Field #ident is required") ) }
-                PropAttr::PropOr(expr) | PropAttr::PropOrElse(expr) => quote!( #expr ),
-                PropAttr::PropOrDefault => quote!(Default::default()),
-            };
-
-            quote!(
-                (@#match_ident #ident : $expr:expr , $($rest:tt)*) => {{
-                    $expr
-                }};
-                (@#match_ident $first:ident : $expr:expr , $($rest:tt)*) => {{
-                    #ty_macro! { @#match_ident $($rest)* }
-                }};
-                (@#match_ident $first:ident : $expr:expr) => {{
-                    #field_value
-                }};
-                (@#match_ident) => {{
-                    #field_value
-                }};
-            )
-        });
-
         let properties = quote! {
             macro_rules! #ty_macro {
-                #(#prop_field_macro)*
                 ($($fields:tt)*) => {{
-                    
-                    #(#prop_field_gen)*
 
                     #props_name#ty_generics {
-                        #(#prop_field_names),*
+                        #(#prop_field_names)*
                     }
                 }};
             }
 
             impl#impl_generics ::yew::html::Properties for #props_name#ty_generics #where_clause {}
         };
-
         tokens.extend(properties);
     }
 }

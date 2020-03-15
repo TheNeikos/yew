@@ -53,6 +53,7 @@ pub enum Msg {
 
 /// Properties of `Select` component.
 #[derive(PartialEq, Clone, Properties, Debug)]
+#[prop_for(Select)]
 pub struct Props<T: Clone> {
     /// Initially selected value.
     #[prop_or_default]
